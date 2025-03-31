@@ -1,6 +1,10 @@
 # Termhome
 
+[![](https://img.shields.io/badge/go-1.24+-blue.svg)](https://go.dev/dl/)
+
 A beautiful terminal homepage application powered by [tview](https://github.com/rivo/tview).
+
+![Screenshot](./assets/screenshot.png)
 
 ## Overview
 
