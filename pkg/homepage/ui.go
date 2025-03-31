@@ -13,13 +13,6 @@ const (
 	linkEnd   = "\033]8;;\007"
 )
 
-// Wrap text in terminal hyperlink escape codes for clickable links
-func makeClickableLink(displayText, url string) string {
-	// For now, display with an indicator rather than using escape sequences
-	// that may not be compatible with all terminals/SSH sessions
-	return fmt.Sprintf("%s [%s]", displayText, url)
-}
-
 // Global status monitor instance
 var statusMonitor *StatusMonitor
 
