@@ -1,0 +1,4 @@
+# Termhome Settings
+title: Termhome Dashboard
+status:
+  checkInterval: 10 # Default status check interval in seconds, overrides individual services if set

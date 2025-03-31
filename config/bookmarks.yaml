@@ -1,0 +1,20 @@
+# Termhome Bookmarks Configuration
+
+Documentation:
+  - name: Termhome Docs
+    href: https://github.com/deblasis/termhome
+    description: Termhome documentation
+
+Search Engines:
+  - name: Google
+    abbr: G
+    href: https://google.com
+    description: Google Search
+  - name: DuckDuckGo
+    abbr: DDG
+    href: https://duckduckgo.com
+    description: Privacy-focused search engine
+  - name: Perplexity
+    abbr: P
+    href: https://perplexity.com
+    description: AI-powered search engine

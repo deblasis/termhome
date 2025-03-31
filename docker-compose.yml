@@ -1,0 +1,108 @@
+version: '3'
+
+services:
+  # Docker socket proxy for secure access
+  dockerproxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    container_name: dockerproxy
+    environment:
+      - CONTAINERS=1 # Allow access to viewing containers
+      - SERVICES=1   # Allow access to viewing services
+      - TASKS=1      # Allow access to viewing tasks
+      - POST=0       # Disallow any POST operations (effectively read-only)
+    ports:
+      - 127.0.0.1:2375:2375
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Mounted as read-only
+    restart: unless-stopped
+
+  # Our termdash-homepage application
+  termdash-homepage:
+    image: ubuntu
+    container_name: termdash-homepage
+    volumes:
+      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock # Direct socket access
+    command: tail -f /dev/null # Keep container running
+    restart: unless-stopped
+
+  # Test Services in different states
+
+  # Service 1: A running healthy service (Nginx)
+  web:
+    image: nginx:alpine
+    container_name: web-healthy
+    ports:
+      - 8080:80
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      - homepage.group=Web
+      - homepage.name=Web Server
+      - homepage.icon=nginx.png
+      - homepage.href=http://localhost:8080
+      - homepage.description=Nginx web server
+    restart: unless-stopped
+
+  # Service 2: Service with unhealthy status (misconfigured health check)
+  unhealthy:
+    image: nginx:alpine
+    container_name: web-unhealthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://nonexistent-host"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      - homepage.group=Monitoring
+      - homepage.name=Unhealthy Service
+      - homepage.icon=warning.png
+      - homepage.description=Service with failing health check
+    restart: "no"
+
+  # Service 3: Service set to stop after starting (will show as stopped)
+  stopped:
+    image: alpine
+    container_name: stopped-service
+    command: echo "This service will exit and be stopped"
+    labels:
+      - homepage.group=Monitoring
+      - homepage.name=Stopped Service
+      - homepage.icon=stopped.png
+      - homepage.description=Intentionally stopped service
+    restart: "no"
+
+  # Service 4: Database service
+  db:
+    image: mariadb:latest
+    container_name: database
+    environment:
+      - MYSQL_ROOT_PASSWORD=example
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    labels:
+      - homepage.group=Database
+      - homepage.name=MariaDB
+      - homepage.icon=database.png
+      - homepage.description=Database server
+    restart: unless-stopped
+
+
+  db2:
+    image: mariadb:latest
+    container_name: database2
+    environment:
+      - MYSQL_ROOT_PASSWORD=example
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    labels:
+      - homepage.group=Database
+      - homepage.name=MariaDB2
+      - homepage.icon=database.png
+      - homepage.description=Database server
+    restart: unless-stopped
