@@ -2,7 +2,7 @@
 
 [![](https://img.shields.io/badge/go-1.24+-blue.svg)](https://go.dev/dl/)
 
-A beautiful terminal homepage application powered by [tview](https://github.com/rivo/tview) that intends to be a simple terminal version of [gethomepage.dev](https://gethomepage.dev/) - [gethomepage.dev Github](https://github.com/gethomepage/homepage)
+A beautiful terminal homepage application powered by [tview](https://github.com/rivo/tview) that intends to be a simple terminal shameless but thankful clone of [gethomepage.dev](https://gethomepage.dev/) - [gethomepage.dev Github](https://github.com/gethomepage/homepage)
 
 ![Screenshot](./assets/screenshot.png)
 
