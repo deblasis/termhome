@@ -1,4 +1,4 @@
-# Termhome
+# TermHome 🐚
 
 [![](https://img.shields.io/badge/go-1.24+-blue.svg)](https://go.dev/dl/)
 
