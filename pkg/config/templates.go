@@ -10,73 +10,95 @@ import (
 
 // SettingsTemplate is the template for settings.yaml
 const SettingsTemplate = `# Termhome Settings
+---
 title: Termhome Dashboard
+description: A simple terminal homepage dashboard
+theme: dark
+showStats: false
+hideVersion: false
 status:
   checkInterval: 10 # Default status check interval in seconds, overrides individual services if set
+
+# Layout configuration example (uncomment to use)
+# layout:
+#   Applications:
+#     style: row
+#     columns: 3
+#   Documentation:
+#     style: column
+#     iconsOnly: true
 `
 
 // ServicesTemplate is the template for services.yaml
 const ServicesTemplate = `# Termhome Services Configuration
+---
+- Applications:
+    - GitHub:
+        icon: github
+        href: https://github.com
+        description: Where the world builds software
+        siteMonitor:
+          url: https://github.com
+          method: HEAD
+          timeout: 5
+          interval: 60
+          expectedCodes: [200, 301, 302]
+    - ChatGPT:
+        icon: openai
+        href: https://chatgpt.com
+        description: The AI chatbot
+        ping:
+          host: chatgpt.com
+          count: 3
+          interval: 60
 
-Applications:
-  - name: GitHub
-    href: https://github.com
-    description: Where the world builds software
-    siteMonitor:
-      url: https://github.com
-      method: HEAD
-      timeout: 5
-      interval: 60
-      expectedCodes: [200, 301, 302]
-  - name: ChatGPT
-    href: https://chatgpt.com
-    description: The AI chatbot
-    ping:
-      host: chatgpt.com
-      count: 3
-      interval: 60
+- Development Tools:
+    - V0:
+        icon: v0
+        href: https://v0.dev
+        siteMonitor:
+          url: https://v0.dev
+          method: GET
+          timeout: 10
+          interval: 60
+          expectedCodes: [429]
+          headers:
+            User-Agent: "Termhome/1.0"
 
-Development Tools:
-  - name: V0
-    href: https://v0.dev
-    siteMonitor:
-      url: https://v0.dev
-      method: GET
-      timeout: 10
-      interval: 60
-      expectedCodes: [429]
-      headers:
-        User-Agent: "Termhome/1.0"
-
-Monitoring:
-  - name: Local Network
-    description: Local network status
-    ping:
-      host: 192.168.1.1
-      interval: 30
+- Monitoring:
+    - Local Network:
+        icon: network
+        description: Local network status
+        ping:
+          host: 192.168.1.1
+          interval: 30
 `
 
 // BookmarksTemplate is the template for bookmarks.yaml
 const BookmarksTemplate = `# Termhome Bookmarks Configuration
+---
+- Documentation:
+    - Termhome Docs:
+        icon: github
+        href: https://github.com/deblasis/termhome
+        description: Termhome documentation
 
-Documentation:
-  - name: Termhome Docs
-    href: https://github.com/deblasis/termhome
-    description: Termhome documentation
-
-Search Engines:
-  - name: Google
-    abbr: G
-    href: https://google.com
-    description: Google Search
-  - name: DuckDuckGo
-    abbr: DDG
-    href: https://duckduckgo.com
-    description: Privacy-focused search engine
-  - name: Perplexity
-    abbr: P
-    href: https://perplexity.com
-    description: AI-powered search engine
+- Search Engines:
+    - Google:
+        abbr: G
+        icon: google
+        href: https://google.com
+        description: Google Search
+    - DuckDuckGo:
+        abbr: DDG
+        icon: duckduckgo
+        href: https://duckduckgo.com
+        description: Privacy-focused search engine
+    - Perplexity:
+        abbr: P
+        icon: perplexity
+        href: https://perplexity.com
+        description: AI-powered search engine
 `
 
 // DockerTemplate is the template for docker.yaml

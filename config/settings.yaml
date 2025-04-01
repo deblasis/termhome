@@ -1,4 +1,18 @@
 # Termhome Settings
+---
 title: Termhome Dashboard
+description: A simple terminal homepage dashboard
+theme: dark
+showStats: false
+hideVersion: false
 status:
   checkInterval: 10 # Default status check interval in seconds, overrides individual services if set
+
+# Layout configuration example (uncomment to use)
+# layout:
+#   Applications:
+#     style: row
+#     columns: 3
+#   Documentation:
+#     style: column
+#     iconsOnly: true

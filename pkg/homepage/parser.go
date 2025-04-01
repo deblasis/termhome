@@ -96,12 +96,16 @@ func LoadServices(filePath string) ([]*ServiceGroup, error) {
 
 	// Expect the format to be an array of maps, where each map represents a group.
 	var arrayFormat []map[string]interface{}
+	logging.Debug("Attempting to unmarshal service data into arrayFormat...")
 	err = yaml.Unmarshal(data, &arrayFormat)
 
 	if err != nil {
 		// If unmarshaling fails, it's likely not the expected format or invalid YAML.
+		logging.Error("Unmarshal into arrayFormat failed: %v", err)
 		return nil, fmt.Errorf("failed to unmarshal services file %s as array format: %w. Ensure it starts with a '-' for each group", filePath, err)
 	}
+
+	logging.Debug("Successfully unmarshaled service data into arrayFormat.")
 
 	// Process the array format
 	logging.Debug("Parsing services file as array format (gethomepage style with dashes)")
@@ -197,66 +201,50 @@ func LoadBookmarks(filePath string) ([]*BookmarkGroup, error) {
 		return nil, fmt.Errorf("failed to read bookmarks file %s: %w", filePath, err)
 	}
 
-	logging.Debug("Loading bookmarks from %s", filePath)
+	logging.Debug("Loading bookmarks from %s (expecting array format)", filePath)
 
-	// Try to parse as a list of maps where each map is a group (gethomepage format, starting with dashes)
-	// Example:
-	// - Group1:
-	//     - Bookmark1:
-	//         href: ...
+	// Expect the format to be an array of maps, where each map represents a group.
 	var arrayFormat []map[string]interface{}
+	logging.Debug("Attempting to unmarshal bookmark data into arrayFormat...")
 	err = yaml.Unmarshal(data, &arrayFormat)
 
-	if err == nil && len(arrayFormat) > 0 {
-		logging.Debug("Parsed bookmarks file as array format (gethomepage style with dashes)")
-		var bookmarkGroups []*BookmarkGroup
-
-		// Process each group in the array
-		for _, groupEntry := range arrayFormat {
-			for groupName, groupData := range groupEntry {
-				// Convert the bookmarks to our format
-				bookmarks, err := convertBookmarksData(groupData)
-				if err != nil {
-					logging.Warn("Error converting bookmarks for group %s: %v", groupName, err)
-					continue
-				}
-
-				// Add group to the list
-				group := &BookmarkGroup{
-					Name:      groupName,
-					Bookmarks: bookmarks,
-				}
-				bookmarkGroups = append(bookmarkGroups, group)
-			}
-		}
-
-		logging.Debug("Loaded %d bookmark groups using array format", len(bookmarkGroups))
-		return bookmarkGroups, nil
-	}
-
-	// If the array format failed, try the map format
-	logging.Debug("Array format parsing failed, trying map format")
-	var bookmarksConfig BookmarksConfig
-	err = yaml.Unmarshal(data, &bookmarksConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal bookmarks file %s: %w", filePath, err)
+		// If unmarshaling fails, it's likely not the expected format or invalid YAML.
+		logging.Error("Unmarshal into arrayFormat failed: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal bookmarks file %s as array format: %w. Ensure it starts with a '-' for each group", filePath, err)
 	}
 
-	// Convert map to slice of BookmarkGroup for easier iteration
+	logging.Debug("Successfully unmarshaled bookmark data into arrayFormat.")
+
+	// Process the array format
+	logging.Debug("Parsing bookmarks file as array format (gethomepage style with dashes)")
 	var bookmarkGroups []*BookmarkGroup
-	for groupName, bookmarks := range bookmarksConfig {
-		// Ensure bookmarks slice is not nil if group exists but is empty
-		if bookmarks == nil {
-			bookmarks = []*Bookmark{}
+
+	// Process each group entry in the array
+	for i, groupEntry := range arrayFormat {
+		if len(groupEntry) != 1 {
+			logging.Warn("Bookmark group entry at index %d does not have exactly one key, skipping.", i)
+			continue // Expecting map like {"Group Name": [bookmarks...]}
 		}
-		group := &BookmarkGroup{
-			Name:      groupName,
-			Bookmarks: bookmarks,
+
+		for groupName, groupData := range groupEntry {
+			// Convert the bookmarks within this group
+			bookmarks, err := convertBookmarksData(groupData) // Use helper
+			if err != nil {
+				logging.Warn("Error converting bookmarks for group '%s': %v", groupName, err)
+				continue // Skip group if bookmarks conversion fails
+			}
+
+			// Add the parsed group to the list
+			group := &BookmarkGroup{
+				Name:      groupName,
+				Bookmarks: bookmarks,
+			}
+			bookmarkGroups = append(bookmarkGroups, group)
 		}
-		bookmarkGroups = append(bookmarkGroups, group)
 	}
 
-	logging.Debug("Loaded %d bookmark groups", len(bookmarkGroups))
+	logging.Debug("Loaded %d bookmark groups using array format", len(bookmarkGroups))
 	return bookmarkGroups, nil
 }
 
@@ -265,7 +253,7 @@ func convertBookmarksData(groupData interface{}) ([]*Bookmark, error) {
 	// The groupData is a list of bookmark maps
 	bookmarksList, ok := groupData.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("group data is not a list")
+		return nil, fmt.Errorf("bookmark group data is not a list")
 	}
 
 	var bookmarks []*Bookmark
@@ -278,29 +266,46 @@ func convertBookmarksData(groupData interface{}) ([]*Bookmark, error) {
 			continue
 		}
 
-		for bookmarkName, bookmarkData := range bookmarkMap {
+		if len(bookmarkMap) != 1 {
+			logging.Warn("Bookmark map does not have exactly one key (the name), skipping: %v", bookmarkMap)
+			continue
+		}
+
+		for bookmarkName, bookmarkDataListRaw := range bookmarkMap {
+			// The actual properties are nested inside a list
+			bookmarkDataList, ok := bookmarkDataListRaw.([]interface{})
+			if !ok || len(bookmarkDataList) == 0 {
+				logging.Warn("Bookmark data for '%s' is not a list or is empty, skipping", bookmarkName)
+				continue
+			}
+
+			// Assume the first item in the list is the map of properties
+			bookmarkPropsMap, ok := bookmarkDataList[0].(map[string]interface{})
+			if !ok {
+				logging.Warn("Bookmark properties for '%s' is not a map, skipping", bookmarkName)
+				continue
+			}
+
 			// Create a temporary map with the bookmark name included
 			bookmarkWithName := map[string]interface{}{
 				"name": bookmarkName,
 			}
 
-			// Copy all the bookmark properties
-			if bookmarkPropsMap, ok := bookmarkData.(map[string]interface{}); ok {
-				for k, v := range bookmarkPropsMap {
-					bookmarkWithName[k] = v
-				}
+			// Copy all the bookmark properties from the nested map
+			for k, v := range bookmarkPropsMap {
+				bookmarkWithName[k] = v
 			}
 
 			// Marshal and unmarshal to convert to our Bookmark struct
 			marshaledData, err := yaml.Marshal(bookmarkWithName)
 			if err != nil {
-				logging.Warn("Failed to marshal bookmark data: %v", err)
+				logging.Warn("Failed to marshal bookmark data for '%s': %v", bookmarkName, err)
 				continue
 			}
 
 			var bookmark Bookmark
 			if err = yaml.Unmarshal(marshaledData, &bookmark); err != nil {
-				logging.Warn("Failed to unmarshal bookmark: %v", err)
+				logging.Warn("Failed to unmarshal bookmark '%s': %v", bookmarkName, err)
 				continue
 			}
 
@@ -311,7 +316,7 @@ func convertBookmarksData(groupData interface{}) ([]*Bookmark, error) {
 	return bookmarks, nil
 }
 
-// LoadDockerConfig loads the Docker configuration from the specified YAML file.
+// LoadDockerConfig loads the docker configuration from the specified YAML file.
 func LoadDockerConfig(filePath string) (*DockerConfig, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {

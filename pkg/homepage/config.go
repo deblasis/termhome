@@ -1,16 +1,44 @@
 package homepage
 
 // Settings represents the structure of the settings.yaml file.
-// We only care about the title for the MVP.
 type Settings struct {
-	Title  string         `yaml:"title"`
-	Status StatusSettings `yaml:"status"`
-	// Other settings are ignored for now (Layout, Theme, etc.)
+	Title             string                 `yaml:"title"`             // Optional: Title of the homepage
+	Description       string                 `yaml:"description"`       // Optional: Description of the homepage
+	StartUrl          string                 `yaml:"startUrl"`          // Optional: Start URL for installable apps
+	Background        string                 `yaml:"background"`        // Optional: Background image URL or path
+	BackgroundOpacity float64                `yaml:"backgroundOpacity"` // Optional: Background opacity (0-1)
+	BackgroundBlur    int                    `yaml:"backgroundBlur"`    // Optional: Background blur amount
+	CardBlur          int                    `yaml:"cardBlur"`          // Optional: Card background blur
+	Favicon           string                 `yaml:"favicon"`           // Optional: Favicon URL or path
+	Theme             string                 `yaml:"theme"`             // Optional: Theme (dark/light)
+	Color             string                 `yaml:"color"`             // Optional: Color palette
+	Layout            map[string]GroupLayout `yaml:"layout"`            // Optional: Layout configuration
+	HeaderStyle       string                 `yaml:"headerStyle"`       // Optional: Header style
+	BaseURL           string                 `yaml:"baseUrl"`           // Optional: Base URL for relative links
+	Language          string                 `yaml:"language"`          // Optional: Interface language
+	LinkTarget        string                 `yaml:"linkTarget"`        // Optional: Link target (_blank, _self, etc.)
+	HideVersion       bool                   `yaml:"hideVersion"`       // Optional: Hide version display
+	ShowStats         bool                   `yaml:"showStats"`         // Optional: Show Docker stats
+	BookmarksStyle    string                 `yaml:"bookmarksStyle"`    // Optional: Bookmarks style (default/icons)
+	Status            StatusSettings         `yaml:"status"`            // Optional: Status monitoring settings
+	InstanceName      string                 `yaml:"instanceName"`      // Optional: Instance name
+	HideErrors        bool                   `yaml:"hideErrors"`        // Optional: Hide widget error messages
+}
+
+// GroupLayout holds layout configuration for a service or bookmark group
+type GroupLayout struct {
+	Style       string `yaml:"style"`       // Optional: Layout style (row/column)
+	Columns     int    `yaml:"columns"`     // Optional: Number of columns
+	IconsOnly   bool   `yaml:"iconsOnly"`   // Optional: Icons only mode for bookmarks
+	Collapsible bool   `yaml:"collapsible"` // Optional: Make section collapsible
+	Collapsed   bool   `yaml:"collapsed"`   // Optional: Initial collapsed state
+	EqualHeight bool   `yaml:"equalHeight"` // Optional: Use equal height cards
 }
 
 // StatusSettings holds global status monitoring settings
 type StatusSettings struct {
-	CheckInterval int `yaml:"checkInterval"` // Global status check interval in seconds
+	CheckInterval int                    `yaml:"checkInterval"` // Global status check interval in seconds
+	DefaultStyle  map[string]StatusStyle `yaml:"style"`         // Default status styles
 }
 
 // PingConfig holds configuration for ICMP ping monitoring
@@ -42,6 +70,7 @@ type Service struct {
 	Name          string                 `yaml:"name"`          // Required: Name of the service
 	Href          string                 `yaml:"href"`          // Optional: URL for the service
 	Description   string                 `yaml:"description"`   // Optional: Description shown below the name
+	Icon          string                 `yaml:"icon"`          // Optional: Icon for the service
 	Status        string                 `yaml:"status"`        // Optional: Custom field for static text status
 	Ping          *PingConfig            `yaml:"ping"`          // Optional: ICMP ping configuration
 	SiteMonitor   *SiteMonitorConfig     `yaml:"siteMonitor"`   // Optional: HTTP site monitoring configuration
@@ -50,7 +79,8 @@ type Service struct {
 	Server        string                 `yaml:"server"`        // Optional: Docker server reference
 	Container     string                 `yaml:"container"`     // Optional: Docker container name
 	ShowStats     bool                   `yaml:"showStats"`     // Optional: Show Docker stats
-	// Icon, Widget, etc. are ignored for now
+	Widget        interface{}            `yaml:"widget"`        // Optional: Widget configuration
+	SubtitleURL   string                 `yaml:"subtitleUrl"`   // Optional: URL for subtitle content
 }
 
 // ServiceGroup represents a group of services in services.yaml.
@@ -70,7 +100,7 @@ type Bookmark struct {
 	Abbr        string `yaml:"abbr"`        // Optional: Abbreviation, used if name is missing
 	Href        string `yaml:"href"`        // Required: URL for the bookmark
 	Description string `yaml:"description"` // Optional: Description shown on hover/tooltip (or below name)
-	// Icon is ignored for now
+	Icon        string `yaml:"icon"`        // Optional: Icon for the bookmark
 }
 
 // BookmarkGroup represents a group of bookmarks in bookmarks.yaml.

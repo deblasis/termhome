@@ -29,3 +29,6 @@ jobs:
 
       - name: Lint
         run: diff -u <(echo -n) <(golint ./...)
+
+      - name: Test
+        run: go test -v ./...
