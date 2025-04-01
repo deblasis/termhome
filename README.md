@@ -50,7 +50,7 @@ termhome init
 
 ### Configuration Files
 
-Termhome uses the same configuration format as [gethomepage.dev](https://gethomepage.dev/):
+Termhome uses the same configuration format as [gethomepage.dev](https://gethomepage.dev/) (tested with v1.1.1):
 
 - `settings.yaml`: Basic settings (title, etc.)
 - `services.yaml`: Service definitions with status monitoring
