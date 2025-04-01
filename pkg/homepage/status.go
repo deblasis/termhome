@@ -76,7 +76,7 @@ func (sm *StatusMonitor) AddService(service *Service) {
 	hasDockerMonitoring := service.Container != ""
 
 	// Don't monitor if no monitoring config is provided
-	if service.Ping == nil && service.SiteMonitor == nil && service.Status == "" && !hasDockerMonitoring {
+	if service.Ping == "" && service.SiteMonitor == "" && service.Status == "" && !hasDockerMonitoring {
 		logging.Debug("Service %s has no monitoring configuration, not adding to monitor", service.Name)
 		return
 	}
@@ -193,22 +193,34 @@ func (sm *StatusMonitor) startMonitoring(service *Service) {
 	stopChan := make(chan struct{})
 	sm.stopChannels[service.Name] = stopChan
 
-	if service.Ping != nil {
+	if service.Ping != "" {
 		// Set default values if not specified
-		count := service.Ping.Count
+		count := service.PingCount
 		if count <= 0 {
 			count = 3
 		}
 
-		// Use global interval if set, otherwise use service-specific or default
-		interval := service.Ping.Interval
+		// Determine the interval
+		interval := service.PingInterval
 		if sm.globalInterval > 0 {
+			logging.Debug("Ping check for %s: Using global interval %d", service.Name, sm.globalInterval)
 			interval = sm.globalInterval
 		} else if interval <= 0 {
-			interval = 60 // Default to 60 seconds
+			logging.Debug("Ping check for %s: Service interval (%d) is invalid, using default 60s", service.Name, interval)
+			interval = 60
 		}
 
-		host := service.Ping.Host
+		// Log the final interval decision
+		logging.Debug("Ping check for %s: Final interval determined as %d seconds", service.Name, interval)
+
+		// Check for non-positive interval BEFORE creating ticker
+		if interval <= 0 {
+			logging.Error("Ping check for %s: Invalid interval (%d), cannot start ticker.", service.Name, interval)
+			sm.updateServiceStatus(service.Name, StatusCritical, fmt.Sprintf("Invalid interval: %d", interval))
+			return
+		}
+
+		host := service.Ping
 		if host == "" {
 			host = service.Href
 			// Extract host from URL if it's a URL
@@ -220,10 +232,11 @@ func (sm *StatusMonitor) startMonitoring(service *Service) {
 			}
 		}
 
-		logging.Info("Starting ping monitoring for %s with interval %d seconds", service.Name, interval)
+		logging.Info("Starting ping monitoring for %s (host: %s) with interval %d seconds", service.Name, host, interval)
 
 		// Start ping monitoring goroutine
 		go func() {
+			logging.Debug("Ping goroutine started for %s", service.Name)
 			ticker := time.NewTicker(time.Duration(interval) * time.Second)
 			defer ticker.Stop()
 
@@ -235,52 +248,66 @@ func (sm *StatusMonitor) startMonitoring(service *Service) {
 				case <-ticker.C:
 					sm.pingService(service.Name, host, count)
 				case <-stopChan:
+					logging.Debug("Ping goroutine stopped for %s", service.Name)
 					return
 				}
 			}
 		}()
-	} else if service.SiteMonitor != nil {
+	} else if service.SiteMonitor != "" {
 		// Set default values if not specified
 		// Use global interval if set, otherwise use service-specific or default
-		interval := service.SiteMonitor.Interval
+		interval := service.SiteMonitorInterval
 		if sm.globalInterval > 0 {
+			logging.Debug("HTTP check for %s: Using global interval %d", service.Name, sm.globalInterval)
 			interval = sm.globalInterval
 		} else if interval <= 0 {
-			interval = 60 // Default to 60 seconds
+			logging.Debug("HTTP check for %s: Service interval (%d) is invalid, using default 60s", service.Name, interval)
+			interval = 60
 		}
 
-		method := service.SiteMonitor.Method
+		// Log the final interval decision
+		logging.Debug("HTTP check for %s: Final interval determined as %d seconds", service.Name, interval)
+
+		// Check for non-positive interval BEFORE creating ticker
+		if interval <= 0 {
+			logging.Error("HTTP site monitoring for %s: Invalid interval (%d), cannot start ticker.", service.Name, interval)
+			sm.updateServiceStatus(service.Name, StatusCritical, fmt.Sprintf("Invalid interval: %d", interval))
+			return
+		}
+
+		method := service.SiteMonitorMethod
 		if method == "" {
-			method = "HEAD" // Default to HEAD
+			method = "HEAD"
 		}
-		timeout := service.SiteMonitor.Timeout
+		timeout := service.SiteMonitorTimeout
 		if timeout <= 0 {
-			timeout = 10 // Default to 10 seconds
+			timeout = 10
 		}
-		url := service.SiteMonitor.URL
-		if url == "" && service.Href != "" {
-			url = service.Href
-		}
-		expectedCodes := service.SiteMonitor.ExpectedCodes
+		expectedCodes := service.SiteMonitorExpectedCodes
 		if len(expectedCodes) == 0 {
-			expectedCodes = []int{200} // Default to 200 OK
+			expectedCodes = []int{http.StatusOK}
 		}
+		headers := service.SiteMonitorHeaders
+		skipVerify := service.SiteMonitorSkipVerify
+		url := service.SiteMonitor
 
-		logging.Info("Starting HTTP monitoring for %s with interval %d seconds", service.Name, interval)
+		logging.Info("Starting HTTP site monitoring for %s (url: %s) with interval %d seconds", service.Name, url, interval)
 
 		// Start HTTP monitoring goroutine
 		go func() {
+			logging.Debug("HTTP goroutine started for %s", service.Name)
 			ticker := time.NewTicker(time.Duration(interval) * time.Second)
 			defer ticker.Stop()
 
 			// Do an initial check immediately
-			sm.checkHTTPService(service.Name, url, method, timeout, expectedCodes, service.SiteMonitor)
+			sm.checkHTTPService(service.Name, url, method, timeout, expectedCodes, headers, skipVerify)
 
 			for {
 				select {
 				case <-ticker.C:
-					sm.checkHTTPService(service.Name, url, method, timeout, expectedCodes, service.SiteMonitor)
+					sm.checkHTTPService(service.Name, url, method, timeout, expectedCodes, headers, skipVerify)
 				case <-stopChan:
+					logging.Debug("HTTP goroutine stopped for %s", service.Name)
 					return
 				}
 			}
@@ -329,7 +356,11 @@ func (sm *StatusMonitor) updateServiceStatus(serviceName string, state StatusSta
 
 // pingService pings a host and updates its status
 func (sm *StatusMonitor) pingService(serviceName, host string, count int) {
-	logging.Debug("Ping check for %s: Starting ping to %s", serviceName, host)
+	// Ensure count is valid
+	if count <= 0 {
+		count = 3 // Default if invalid
+	}
+	logging.Debug("Ping check for %s: Starting ping to %s with count %d", serviceName, host, count)
 
 	var cmd *exec.Cmd
 	var pingOpts []string
@@ -352,19 +383,18 @@ func (sm *StatusMonitor) pingService(serviceName, host string, count int) {
 
 	// Run the ping command
 	startTime := time.Now()
-	logging.Debug("Ping check for %s: Running ping command with options: %v %s",
-		serviceName, pingOpts, host)
+	logging.Debug("Ping check for %s: Running command 'ping %v %s'", serviceName, pingOpts, host)
 	cmd = exec.Command("ping", append(pingOpts, host)...)
 	output, err := cmd.CombinedOutput()
 	elapsed := time.Since(startTime)
 
 	// Parse the ping output
 	pingResults := string(output)
-	logging.Debug("Ping check for %s: Raw output: %s", serviceName, pingResults)
+	logging.Debug("Ping check for %s: Raw output:\n%s", serviceName, pingResults)
 
 	if err != nil {
 		// Ping failed
-		logging.Error("Ping check for %s: Command failed: %v", serviceName, err)
+		logging.Error("Ping check for %s: Command failed: %v. Output: %s", serviceName, err, pingResults)
 		sm.updateServiceStatus(serviceName, StatusCritical, fmt.Sprintf("Ping failed: %v", err))
 		return
 	}
@@ -450,12 +480,22 @@ func (sm *StatusMonitor) pingService(serviceName, host string, count int) {
 	}
 }
 
-// checkHTTPService performs an HTTP request to check a service
-func (sm *StatusMonitor) checkHTTPService(serviceName, url, method string, timeoutSec int, expectedCodes []int, config *SiteMonitorConfig) {
-	logging.Debug("HTTP check for %s: Starting check for URL %s", serviceName, url)
+// checkHTTPService performs an HTTP check for a service
+func (sm *StatusMonitor) checkHTTPService(
+	serviceName, url, method string,
+	timeoutSec int,
+	expectedCodes []int,
+	headers map[string]string,
+	skipVerify bool,
+) {
+	logging.Debug("HTTP check for %s: Starting check for URL %s (Method: %s, Timeout: %ds)", serviceName, url, method, timeoutSec)
+	startTime := time.Now()
+	result := StatusResult{State: StatusUnknown}
 
 	if url == "" {
-		sm.updateServiceStatus(serviceName, StatusCritical, "No URL specified for HTTP check")
+		result.State = StatusCritical
+		result.Message = "No URL specified for HTTP check"
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 		return
 	}
 
@@ -472,46 +512,47 @@ func (sm *StatusMonitor) checkHTTPService(serviceName, url, method string, timeo
 	}
 
 	// Configure TLS settings if needed
-	if config.SkipVerify {
+	if skipVerify {
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipVerify},
 		}
 	}
 
 	// Create the request
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), method, url, nil)
 	if err != nil {
 		logging.Error("HTTP check for %s: Error creating request: %v", serviceName, err)
-		sm.updateServiceStatus(serviceName, StatusCritical, fmt.Sprintf("Invalid request: %v", err))
+		result.State = StatusCritical
+		result.Message = fmt.Sprintf("Error creating request: %v", err)
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 		return
 	}
 
-	// Add headers if specified
-	if config.Headers != nil {
-		for key, value := range config.Headers {
-			req.Header.Add(key, value)
-		}
+	// Add custom headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	// Set User-Agent
 	req.Header.Set("User-Agent", "Termdash/1.0")
 
 	// Execute the request
-	startTime := time.Now()
-	logging.Debug("HTTP check for %s: Sending %s request to %s", serviceName, method, url)
+	logging.Debug("HTTP check for %s: Sending request...", serviceName)
 	resp, err := client.Do(req)
-	elapsed := time.Since(startTime)
+	responseTime := time.Since(startTime)
 
 	if err != nil {
 		logging.Error("HTTP check for %s: Request failed: %v", serviceName, err)
-		sm.updateServiceStatus(serviceName, StatusCritical, fmt.Sprintf("Request failed: %v", err))
+		result.State = StatusCritical
+		result.Message = fmt.Sprintf("Request failed: %v", err)
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 		return
 	}
 	defer resp.Body.Close()
 
-	responseTime := elapsed.Milliseconds()
+	responseTimeMs := responseTime.Milliseconds()
 	logging.Debug("HTTP check for %s: Received response code %d in %d ms",
-		serviceName, resp.StatusCode, responseTime)
+		serviceName, resp.StatusCode, responseTimeMs)
 
 	// Check if status code is in expected codes
 	codeIsExpected := false
@@ -526,17 +567,23 @@ func (sm *StatusMonitor) checkHTTPService(serviceName, url, method string, timeo
 		// Update the response time
 		sm.mutex.Lock()
 		if result, exists := sm.results[serviceName]; exists {
-			result.ResponseTime = elapsed
+			result.ResponseTime = responseTime
 		}
 		sm.mutex.Unlock()
 
-		sm.updateServiceStatus(serviceName, StatusOK, fmt.Sprintf("Up (%d ms)", responseTime))
+		sm.updateServiceStatus(serviceName, StatusOK, fmt.Sprintf("Up (%d ms)", responseTimeMs))
 	} else if resp.StatusCode >= 500 {
-		sm.updateServiceStatus(serviceName, StatusCritical, fmt.Sprintf("Server error: %d", resp.StatusCode))
+		result.State = StatusCritical
+		result.Message = fmt.Sprintf("Server error: %d", resp.StatusCode)
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 	} else if resp.StatusCode >= 400 {
-		sm.updateServiceStatus(serviceName, StatusWarning, fmt.Sprintf("Client error: %d", resp.StatusCode))
+		result.State = StatusWarning
+		result.Message = fmt.Sprintf("Client error: %d", resp.StatusCode)
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 	} else {
-		sm.updateServiceStatus(serviceName, StatusWarning, fmt.Sprintf("Unexpected response: %d", resp.StatusCode))
+		result.State = StatusWarning
+		result.Message = fmt.Sprintf("Unexpected response: %d", resp.StatusCode)
+		sm.updateServiceStatus(serviceName, result.State, result.Message)
 	}
 }
 

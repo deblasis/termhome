@@ -37,41 +37,37 @@ const ServicesTemplate = `# Termhome Services Configuration
         icon: github
         href: https://github.com
         description: Where the world builds software
-        siteMonitor:
-          url: https://github.com
-          method: HEAD
-          timeout: 5
-          interval: 60
-          expectedCodes: [200, 301, 302]
+        siteMonitor: https://github.com
+        siteMonitorMethod: HEAD
+        siteMonitorTimeout: 5
+        siteMonitorInterval: 60
+        siteMonitorExpectedCodes: [200, 301, 302]
     - ChatGPT:
         icon: openai
         href: https://chatgpt.com
         description: The AI chatbot
-        ping:
-          host: chatgpt.com
-          count: 3
-          interval: 60
+        ping: chatgpt.com
+        pingCount: 3
+        pingInterval: 60
 
 - Development Tools:
     - V0:
         icon: v0
         href: https://v0.dev
-        siteMonitor:
-          url: https://v0.dev
-          method: GET
-          timeout: 10
-          interval: 60
-          expectedCodes: [429]
-          headers:
+        siteMonitor: https://v0.dev
+        siteMonitorMethod: GET
+        siteMonitorTimeout: 10
+        siteMonitorInterval: 60
+        siteMonitorExpectedCodes: [429]
+        siteMonitorHeaders:
             User-Agent: "Termhome/1.0"
 
 - Monitoring:
     - Local Network:
         icon: network
         description: Local network status
-        ping:
-          host: 192.168.1.1
-          interval: 30
+        ping: 192.168.1.1
+        pingInterval: 30
 `
 
 // BookmarksTemplate is the template for bookmarks.yaml

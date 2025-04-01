@@ -41,24 +41,6 @@ type StatusSettings struct {
 	DefaultStyle  map[string]StatusStyle `yaml:"style"`         // Default status styles
 }
 
-// PingConfig holds configuration for ICMP ping monitoring
-type PingConfig struct {
-	Host     string `yaml:"host"`     // Required: Host to ping
-	Count    int    `yaml:"count"`    // Optional: Number of pings to send (default: 3)
-	Interval int    `yaml:"interval"` // Optional: Ping interval in seconds (default: 60)
-}
-
-// SiteMonitorConfig holds configuration for HTTP site monitoring
-type SiteMonitorConfig struct {
-	URL           string            `yaml:"url"`           // Required: URL to monitor
-	Method        string            `yaml:"method"`        // Optional: HTTP method (default: HEAD)
-	Timeout       int               `yaml:"timeout"`       // Optional: Request timeout in seconds (default: 10)
-	Interval      int               `yaml:"interval"`      // Optional: Check interval in seconds (default: 60)
-	ExpectedCodes []int             `yaml:"expectedCodes"` // Optional: HTTP codes to consider "up" (default: [200])
-	Headers       map[string]string `yaml:"headers"`       // Optional: Headers to include in the request
-	SkipVerify    bool              `yaml:"skipVerify"`    // Optional: Skip TLS certificate verification
-}
-
 // StatusStyle defines custom styling for status indicators
 type StatusStyle struct {
 	Icon  string `yaml:"icon"`  // Custom icon for this status
@@ -67,20 +49,28 @@ type StatusStyle struct {
 
 // Service represents a single service entry within a group in services.yaml.
 type Service struct {
-	Name          string                 `yaml:"name"`          // Required: Name of the service
-	Href          string                 `yaml:"href"`          // Optional: URL for the service
-	Description   string                 `yaml:"description"`   // Optional: Description shown below the name
-	Icon          string                 `yaml:"icon"`          // Optional: Icon for the service
-	Status        string                 `yaml:"status"`        // Optional: Custom field for static text status
-	Ping          *PingConfig            `yaml:"ping"`          // Optional: ICMP ping configuration
-	SiteMonitor   *SiteMonitorConfig     `yaml:"siteMonitor"`   // Optional: HTTP site monitoring configuration
-	StatusStyle   map[string]StatusStyle `yaml:"statusStyle"`   // Optional: Custom styling for status indicators
-	DisableStatus bool                   `yaml:"disableStatus"` // Optional: Disable status monitoring for this service
-	Server        string                 `yaml:"server"`        // Optional: Docker server reference
-	Container     string                 `yaml:"container"`     // Optional: Docker container name
-	ShowStats     bool                   `yaml:"showStats"`     // Optional: Show Docker stats
-	Widget        interface{}            `yaml:"widget"`        // Optional: Widget configuration
-	SubtitleURL   string                 `yaml:"subtitleUrl"`   // Optional: URL for subtitle content
+	Name                     string                 `yaml:"name"`                     // Required: Name of the service
+	Href                     string                 `yaml:"href"`                     // Optional: URL for the service
+	Description              string                 `yaml:"description"`              // Optional: Description shown below the name
+	Icon                     string                 `yaml:"icon"`                     // Optional: Icon for the service
+	Status                   string                 `yaml:"status"`                   // Optional: Custom field for static text status
+	Ping                     string                 `yaml:"ping"`                     // Optional: Host to ping (simple ICMP check)
+	PingCount                int                    `yaml:"pingCount"`                // Optional: Number of pings to send (default: 3)
+	PingInterval             int                    `yaml:"pingInterval"`             // Optional: Ping interval in seconds (default: 60)
+	SiteMonitor              string                 `yaml:"siteMonitor"`              // Optional: URL to monitor (simple HTTP check)
+	SiteMonitorMethod        string                 `yaml:"siteMonitorMethod"`        // Optional: HTTP method for site monitor (default: HEAD)
+	SiteMonitorTimeout       int                    `yaml:"siteMonitorTimeout"`       // Optional: Request timeout for site monitor in seconds (default: 10)
+	SiteMonitorInterval      int                    `yaml:"siteMonitorInterval"`      // Optional: Check interval for site monitor in seconds (default: 60)
+	SiteMonitorExpectedCodes []int                  `yaml:"siteMonitorExpectedCodes"` // Optional: HTTP codes to consider "up" (default: [200])
+	SiteMonitorHeaders       map[string]string      `yaml:"siteMonitorHeaders"`       // Optional: Headers to include in the site monitor request
+	SiteMonitorSkipVerify    bool                   `yaml:"siteMonitorSkipVerify"`    // Optional: Skip TLS certificate verification for site monitor
+	StatusStyle              map[string]StatusStyle `yaml:"statusStyle"`              // Optional: Custom styling for status indicators
+	DisableStatus            bool                   `yaml:"disableStatus"`            // Optional: Disable status monitoring for this service
+	Server                   string                 `yaml:"server"`                   // Optional: Docker server reference
+	Container                string                 `yaml:"container"`                // Optional: Docker container name
+	ShowStats                bool                   `yaml:"showStats"`                // Optional: Show Docker stats
+	Widget                   interface{}            `yaml:"widget"`                   // Optional: Widget configuration
+	SubtitleURL              string                 `yaml:"subtitleUrl"`              // Optional: URL for subtitle content
 }
 
 // ServiceGroup represents a group of services in services.yaml.

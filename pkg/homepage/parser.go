@@ -141,10 +141,10 @@ func LoadServices(filePath string) ([]*ServiceGroup, error) {
 
 // Helper function to convert group data to services
 func convertServicesData(groupData interface{}) ([]*Service, error) {
-	// The groupData is a list of service maps
+	// The groupData is expected to be a list of service maps
 	servicesList, ok := groupData.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("group data is not a list")
+		return nil, fmt.Errorf("service group data is not a list")
 	}
 
 	var services []*Service
@@ -157,31 +157,132 @@ func convertServicesData(groupData interface{}) ([]*Service, error) {
 			continue
 		}
 
-		for serviceName, serviceData := range serviceMap {
-			// Create a temporary map with the service name included
-			serviceWithName := map[string]interface{}{
-				"name": serviceName,
+		if len(serviceMap) != 1 {
+			logging.Warn("Service map does not have exactly one key (the name), skipping: %v", serviceMap)
+			continue
+		}
+
+		for serviceName, serviceDataRaw := range serviceMap {
+			servicePropsMap, ok := serviceDataRaw.(map[string]interface{})
+			if !ok {
+				// Handle cases where the service data might just be a URL string (if applicable)
+				// For now, assume it must be a map based on standard format.
+				logging.Warn("Service data for '%s' is not a map, skipping", serviceName)
+				continue
 			}
 
-			// Copy all the service properties
-			if servicePropsMap, ok := serviceData.(map[string]interface{}); ok {
-				for k, v := range servicePropsMap {
-					serviceWithName[k] = v
+			// --- Log the raw properties map for debugging ---
+			logging.Debug("Raw properties for service '%s': %#v", serviceName, servicePropsMap)
+
+			// Manually create and populate the Service struct
+			service := Service{Name: serviceName}
+
+			if href, ok := servicePropsMap["href"].(string); ok {
+				service.Href = href
+			}
+			if description, ok := servicePropsMap["description"].(string); ok {
+				service.Description = description
+			}
+			if icon, ok := servicePropsMap["icon"].(string); ok {
+				service.Icon = icon
+			}
+			if status, ok := servicePropsMap["status"].(string); ok {
+				service.Status = status
+			}
+			// --- Handle Ping (string) and related fields ---
+			if pingRaw, exists := servicePropsMap["ping"]; exists {
+				logging.Debug("Found 'ping' key for '%s', type: %T, value: %v", serviceName, pingRaw, pingRaw)
+				if ping, ok := pingRaw.(string); ok {
+					service.Ping = ping
+				}
+			}
+			if pingCountRaw, exists := servicePropsMap["pingCount"]; exists {
+				logging.Debug("Found 'pingCount' key for '%s', type: %T, value: %v", serviceName, pingCountRaw, pingCountRaw)
+				if pingCount, ok := pingCountRaw.(int); ok {
+					service.PingCount = pingCount
+				} else if pingCountFloat, ok := pingCountRaw.(float64); ok {
+					service.PingCount = int(pingCountFloat) // Handle potential float from YAML
+				}
+			}
+			if pingIntervalRaw, exists := servicePropsMap["pingInterval"]; exists {
+				logging.Debug("Found 'pingInterval' key for '%s', type: %T, value: %v", serviceName, pingIntervalRaw, pingIntervalRaw)
+				if pingInterval, ok := pingIntervalRaw.(int); ok {
+					service.PingInterval = pingInterval
+				} else if pingIntervalFloat, ok := pingIntervalRaw.(float64); ok {
+					service.PingInterval = int(pingIntervalFloat)
 				}
 			}
 
-			// Marshal and unmarshal to convert to our Service struct
-			marshaledData, err := yaml.Marshal(serviceWithName)
-			if err != nil {
-				logging.Warn("Failed to marshal service data: %v", err)
-				continue
+			// --- Handle SiteMonitor (string) and related fields ---
+			if siteMonitorRaw, exists := servicePropsMap["siteMonitor"]; exists {
+				logging.Debug("Found 'siteMonitor' key for '%s', type: %T, value: %v", serviceName, siteMonitorRaw, siteMonitorRaw)
+				if siteMonitor, ok := siteMonitorRaw.(string); ok {
+					service.SiteMonitor = siteMonitor
+				}
+			}
+			if siteMonitorMethod, ok := servicePropsMap["siteMonitorMethod"].(string); ok {
+				service.SiteMonitorMethod = siteMonitorMethod
+			}
+			if siteMonitorTimeout, ok := servicePropsMap["siteMonitorTimeout"].(int); ok {
+				service.SiteMonitorTimeout = siteMonitorTimeout
+			} else if siteMonitorTimeoutFloat, ok := servicePropsMap["siteMonitorTimeout"].(float64); ok {
+				service.SiteMonitorTimeout = int(siteMonitorTimeoutFloat)
+			}
+			if siteMonitorInterval, ok := servicePropsMap["siteMonitorInterval"].(int); ok {
+				service.SiteMonitorInterval = siteMonitorInterval
+			} else if siteMonitorIntervalFloat, ok := servicePropsMap["siteMonitorInterval"].(float64); ok {
+				service.SiteMonitorInterval = int(siteMonitorIntervalFloat)
+			}
+			if codesRaw, ok := servicePropsMap["siteMonitorExpectedCodes"].([]interface{}); ok {
+				var codes []int
+				for _, codeRaw := range codesRaw {
+					if codeInt, okInt := codeRaw.(int); okInt {
+						codes = append(codes, codeInt)
+					} else if codeFloat, okFloat := codeRaw.(float64); okFloat {
+						codes = append(codes, int(codeFloat))
+					}
+				}
+				service.SiteMonitorExpectedCodes = codes
+			}
+			if headersRaw, ok := servicePropsMap["siteMonitorHeaders"].(map[interface{}]interface{}); ok {
+				headers := make(map[string]string)
+				for kRaw, vRaw := range headersRaw {
+					if kStr, okK := kRaw.(string); okK {
+						if vStr, okV := vRaw.(string); okV {
+							headers[kStr] = vStr
+						}
+					}
+				}
+				service.SiteMonitorHeaders = headers
+			}
+			if skipVerify, ok := servicePropsMap["siteMonitorSkipVerify"].(bool); ok {
+				service.SiteMonitorSkipVerify = skipVerify
 			}
 
-			var service Service
-			if err = yaml.Unmarshal(marshaledData, &service); err != nil {
-				logging.Warn("Failed to unmarshal service: %v", err)
-				continue
+			// --- Handle other fields ---
+			if disableStatus, ok := servicePropsMap["disableStatus"].(bool); ok {
+				service.DisableStatus = disableStatus
 			}
+			if server, ok := servicePropsMap["server"].(string); ok {
+				service.Server = server
+			}
+			if container, ok := servicePropsMap["container"].(string); ok {
+				service.Container = container
+			}
+			if showStats, ok := servicePropsMap["showStats"].(bool); ok {
+				service.ShowStats = showStats
+			}
+			if subtitleUrl, ok := servicePropsMap["subtitleUrl"].(string); ok {
+				service.SubtitleURL = subtitleUrl
+			}
+			// statusStyle and widget might need more complex handling if populated here
+			// For now, we assume they are handled correctly by the struct tags if needed
+			// or need specific logic based on their structure.
+			// service.StatusStyle = ...
+			// service.Widget = ...
+
+			// --- Log the final parsed service struct ---
+			logging.Debug("Parsed service '%s': Ping='%s', SiteMonitor='%s', Status='%s'", serviceName, service.Ping, service.SiteMonitor, service.Status)
 
 			services = append(services, &service)
 		}

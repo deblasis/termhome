@@ -135,19 +135,20 @@ func TestLoadServices_TwoGroupsOneServiceEach(t *testing.T) {
 // TestConvertServicesData verifies the helper function for converting service data.
 func TestConvertServicesData(t *testing.T) {
 	groupData := []interface{}{
-		map[string]interface{}{
-			"Service One": map[string]interface{}{
+		map[string]interface{}{ // Service One - No ping
+			"Service One": map[string]interface{}{ // Use map[string]interface{} for properties
 				"href":        "http://one.com",
 				"description": "Desc 1",
 			},
 		},
-		map[string]interface{}{
-			"Service Two": map[string]interface{}{
+		map[string]interface{}{ // Service Two - With string ping
+			"Service Two": map[string]interface{}{ // Use map[string]interface{} for properties
 				"href": "http://two.net",
 				"icon": "icon-two",
-				"ping": map[string]interface{}{
-					"host": "two.net",
-				},
+				"ping": "two.net", // Ping is now just a string
+				// Optionally add other ping fields if needed for the test
+				// "pingCount": 3,
+				// "pingInterval": 30,
 			},
 		},
 	}
@@ -162,16 +163,14 @@ func TestConvertServicesData(t *testing.T) {
 	assert.Equal(t, "Service One", services[0].Name)
 	assert.Equal(t, "http://one.com", services[0].Href)
 	assert.Equal(t, "Desc 1", services[0].Description)
-	assert.Nil(t, services[0].Ping, "Service One should not have Ping config")
+	assert.Equal(t, "", services[0].Ping, "Service One Ping string should be empty")
 
 	// Check Service Two
 	assert.Equal(t, "Service Two", services[1].Name)
 	assert.Equal(t, "http://two.net", services[1].Href)
 	assert.Equal(t, "icon-two", services[1].Icon)
-	assert.NotNil(t, services[1].Ping, "Service Two should have Ping config")
-	if services[1].Ping != nil {
-		assert.Equal(t, "two.net", services[1].Ping.Host)
-	}
+	assert.NotEqual(t, "", services[1].Ping, "Service Two Ping string should not be empty")
+	assert.Equal(t, "two.net", services[1].Ping) // Check the Ping string directly
 }
 
 // TestConvertBookmarksData verifies the helper function for converting bookmark data.
