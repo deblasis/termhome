@@ -271,32 +271,37 @@ func convertBookmarksData(groupData interface{}) ([]*Bookmark, error) {
 			continue
 		}
 
-		for bookmarkName, bookmarkDataListRaw := range bookmarkMap {
-			// The actual properties are nested inside a list
-			bookmarkDataList, ok := bookmarkDataListRaw.([]interface{})
-			if !ok || len(bookmarkDataList) == 0 {
-				logging.Warn("Bookmark data for '%s' is not a list or is empty, skipping", bookmarkName)
+		for bookmarkName, bookmarkDataRaw := range bookmarkMap {
+			var bookmarkPropsMap map[string]interface{}
+
+			// Try parsing as nested list format first (gethomepage standard)
+			if bookmarkDataList, okList := bookmarkDataRaw.([]interface{}); okList {
+				if len(bookmarkDataList) > 0 {
+					if props, okMap := bookmarkDataList[0].(map[string]interface{}); okMap {
+						bookmarkPropsMap = props // Successfully parsed nested list format
+					} else {
+						logging.Warn("Bookmark properties item within list for '%s' is not a map, skipping", bookmarkName)
+						continue
+					}
+				} else {
+					logging.Warn("Bookmark data list for '%s' is empty, skipping", bookmarkName)
+					continue
+				}
+			} else if props, okMap := bookmarkDataRaw.(map[string]interface{}); okMap {
+				// If not a list, try parsing as simple map format
+				bookmarkPropsMap = props // Successfully parsed simple map format
+			} else {
+				// If it's neither format, log warning and skip
+				logging.Warn("Bookmark data for '%s' is not a recognized format (list[map] or map), skipping", bookmarkName)
 				continue
 			}
 
-			// Assume the first item in the list is the map of properties
-			bookmarkPropsMap, ok := bookmarkDataList[0].(map[string]interface{})
-			if !ok {
-				logging.Warn("Bookmark properties for '%s' is not a map, skipping", bookmarkName)
-				continue
-			}
-
-			// Create a temporary map with the bookmark name included
-			bookmarkWithName := map[string]interface{}{
-				"name": bookmarkName,
-			}
-
-			// Copy all the bookmark properties from the nested map
+			// --- Proceed with bookmark creation using bookmarkPropsMap ---
+			bookmarkWithName := map[string]interface{}{"name": bookmarkName}
 			for k, v := range bookmarkPropsMap {
 				bookmarkWithName[k] = v
 			}
 
-			// Marshal and unmarshal to convert to our Bookmark struct
 			marshaledData, err := yaml.Marshal(bookmarkWithName)
 			if err != nil {
 				logging.Warn("Failed to marshal bookmark data for '%s': %v", bookmarkName, err)
@@ -308,11 +313,9 @@ func convertBookmarksData(groupData interface{}) ([]*Bookmark, error) {
 				logging.Warn("Failed to unmarshal bookmark '%s': %v", bookmarkName, err)
 				continue
 			}
-
 			bookmarks = append(bookmarks, &bookmark)
 		}
 	}
-
 	return bookmarks, nil
 }
 
